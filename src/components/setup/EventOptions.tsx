@@ -6,16 +6,7 @@ export function EventOptions() {
 
   return (
     <div className="space-y-3">
-      <h3 className="font-semibold text-slate-800">행사 옵션</h3>
-
-      <label className="flex items-center justify-between text-sm">
-        <span>꽝도 탈락 처리</span>
-        <input
-          type="checkbox"
-          checked={config.eliminateOnLose}
-          onChange={(e) => updateConfig({ eliminateOnLose: e.target.checked })}
-        />
-      </label>
+      <h3 className="font-semibold text-slate-800">추가 옵션</h3>
 
       <label className="flex items-center justify-between text-sm">
         <span>결과 공개 효과음</span>

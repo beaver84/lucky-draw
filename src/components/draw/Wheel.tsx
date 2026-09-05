@@ -62,9 +62,12 @@ export function Wheel({ slots, targetIndex, spinSpeed, spinToken, onSpinEnd }: W
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="relative" style={{ width: 320, height: 320 }}>
+      <div
+        className="relative rounded-full border-[10px] border-slate-900"
+        style={{ width: 320, height: 320 }}
+      >
         <div
-          className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2"
+          className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-[calc(100%+2px)]"
           style={{
             width: 0,
             height: 0,
@@ -74,6 +77,12 @@ export function Wheel({ slots, targetIndex, spinSpeed, spinToken, onSpinEnd }: W
           }}
           aria-hidden
         />
+        <div
+          className="absolute left-1/2 top-1/2 z-10 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900 text-sm font-bold tracking-wide text-white"
+          aria-hidden
+        >
+          SPIN
+        </div>
         <svg
           viewBox="-1 -1 2 2"
           width={320}

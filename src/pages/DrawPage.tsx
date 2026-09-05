@@ -2,36 +2,49 @@ import { useState } from 'react'
 import { useEventStore } from '../store/eventStore'
 import { computeWheelSlots } from '../domain/draw'
 import { Wheel } from '../components/draw/Wheel'
-import { DrawControls } from '../components/draw/DrawControls'
-import { ResultModal } from '../components/draw/ResultModal'
+import { DrawHeader } from '../components/draw/DrawHeader'
+import { StatTiles } from '../components/draw/StatTiles'
+import { WinnerRows } from '../components/draw/WinnerRows'
+import { ResultBanner } from '../components/draw/ResultBanner'
+import { DrawActionBar } from '../components/draw/DrawActionBar'
+import { CompletedSummary } from '../components/draw/CompletedSummary'
 import { StatusPanel } from '../components/status/StatusPanel'
 import { EndControls } from '../components/status/EndControls'
+import { celebrateWin } from '../lib/confetti'
 
 interface DrawResult {
   participantName: string
   isPrize: boolean
   prizeName: string | null
-  remainingTotal: number
 }
 
 export function DrawPage() {
   const pendingDraw = useEventStore((s) => s.pendingDraw)
+  const participants = useEventStore((s) => s.participants)
   const prizes = useEventStore((s) => s.prizes)
   const config = useEventStore((s) => s.config)
   const history = useEventStore((s) => s.history)
   const startDraw = useEventStore((s) => s.startDraw)
   const commitPendingDraw = useEventStore((s) => s.commitPendingDraw)
+  const resetAll = useEventStore((s) => s.resetAll)
 
   const [spinToken, setSpinToken] = useState(0)
   const [message, setMessage] = useState<string | null>(null)
   const [result, setResult] = useState<DrawResult | null>(null)
 
+  if (config.status === 'COMPLETED') {
+    return <CompletedSummary />
+  }
+
   const wheelSlots = pendingDraw ? pendingDraw.slots : computeWheelSlots(prizes)
   const targetIndex = pendingDraw ? pendingDraw.resultIndex : null
-  const completed = config.status === 'COMPLETED'
+  const winnerEntries = history.filter((h) => h.resultType === 'PRIZE')
+  const remainingParticipants = participants.filter((p) => p.status === 'ELIGIBLE').length
+  const remainingPrizes = prizes.reduce((sum, p) => sum + p.remainingQuantity, 0)
 
   function handleDraw() {
     setMessage(null)
+    setResult(null)
     const started = startDraw()
     if (!started) {
       setMessage('추첨할 수 없습니다. 남은 추첨 대상이 없습니다.')
@@ -46,29 +59,23 @@ export function DrawPage() {
     const slot = pd.slots[pd.resultIndex]
     const isPrize = slot.kind === 'PRIZE'
     commitPendingDraw()
-    const remainingTotal = useEventStore
-      .getState()
-      .prizes.reduce((sum, p) => sum + p.remainingQuantity, 0)
     setResult({
       participantName: pd.participant.displayName,
       isPrize,
       prizeName: isPrize ? slot.prizeName : null,
-      remainingTotal,
     })
+    if (isPrize) celebrateWin()
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 p-6">
-      <h1 className="text-2xl font-bold text-slate-800">추첨 진행</h1>
-      {!completed && <p className="text-sm text-slate-500">회차 {history.length + 1}</p>}
+    <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <DrawHeader
+        round={history.length + 1}
+        participantName={pendingDraw ? null : (result?.participantName ?? null)}
+      />
 
-      {completed ? (
-        <div className="rounded border border-slate-300 bg-white px-6 py-8 text-center">
-          <p className="text-xl font-bold text-slate-800">추첨이 완료되었습니다</p>
-          <p className="mt-2 text-sm text-slate-500">모든 경품이 소진되었거나 추첨 대상이 없습니다.</p>
-        </div>
-      ) : (
-        <>
+      <div className="grid gap-6 md:grid-cols-[320px_1fr]">
+        <div className="flex justify-center">
           <Wheel
             slots={wheelSlots}
             targetIndex={targetIndex}
@@ -76,24 +83,38 @@ export function DrawPage() {
             spinToken={spinToken}
             onSpinEnd={handleSpinEnd}
           />
-          <DrawControls
-            disabled={pendingDraw !== null || result !== null}
-            spinning={pendingDraw !== null}
-            onDraw={handleDraw}
-            message={message}
-          />
-        </>
-      )}
+        </div>
 
-      {result && (
-        <ResultModal
+        <div className="space-y-4">
+          <StatTiles
+            remainingParticipants={remainingParticipants}
+            remainingPrizes={remainingPrizes}
+            completedRounds={history.length}
+          />
+          <div className="rounded border border-slate-200 bg-white">
+            <h2 className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+              당첨자 명단
+            </h2>
+            <WinnerRows entries={winnerEntries} />
+          </div>
+        </div>
+      </div>
+
+      {result && !pendingDraw && (
+        <ResultBanner
           participantName={result.participantName}
           isPrize={result.isPrize}
           prizeName={result.prizeName}
-          remainingTotal={result.remainingTotal}
-          onNext={() => setResult(null)}
         />
       )}
+
+      <DrawActionBar
+        disabled={pendingDraw !== null}
+        spinning={pendingDraw !== null}
+        message={message}
+        onDraw={handleDraw}
+        onReset={resetAll}
+      />
 
       <StatusPanel />
       <EndControls />

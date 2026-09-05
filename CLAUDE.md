@@ -27,21 +27,31 @@ Vite + React + TypeScript, Zustand (with `persist` middleware → localStorage) 
 src/
   types.ts              # Participant / Prize / DrawHistoryEntry / EventConfig — mirrors Requirement.md §5
   domain/                # Pure functions, no React/store imports. Unit-tested here (draw.test.ts).
-    participants.ts      # bulk-input parsing, dedupe-against-existing-list
-    prizes.ts             # bulk-input parsing ("name,qty" lines), same-name quantity merge
+    participants.ts      # parseParticipantLines (dedupe, one name per line/comma), generateNumberedParticipants
+    prizes.ts             # parsePrizeLines — one prize name per line, repeated lines merge into quantity
     draw.ts                # computeWheelSlots / pickParticipant / spinWheel — the RNG core, spec §6
     csv.ts                  # history -> CSV string
   store/
     eventStore.ts         # single Zustand store: participants, prizes, history, config, pendingDraw
   components/
-    setup/                # registration screen pieces (spec §4.1)
-    draw/                  # Wheel, DrawControls, ResultModal (spec §4.2)
-    status/                # StatusPanel, WinnerTable, LoseTable, EndControls (CSV export + reset, spec §4.3/§4.4)
+    setup/                # registration screen pieces (spec §4.1) — ParticipantPanel/PrizePanel are live
+                            # textareas that fully rebuild the store's participants/prizes array on every
+                            # keystroke (setParticipantsFromText/setPrizesFromText); there is no separate
+                            # add/edit/delete list UI, the textarea itself is the source of truth pre-draw
+    draw/                  # Wheel (SVG + spin), DrawHeader/StatTiles/WinnerRows/ResultBanner/DrawActionBar
+                            # (the compact in-progress layout), CompletedSummary (spec §4.4 end screen)
+    status/                # StatusPanel, WinnerTable, LoseTable (detailed secondary panel shown below the
+                            # compact draw UI), EndControls (CSV export only — reset lives in DrawActionBar
+                            # for the in-progress screen, and in CompletedSummary's own button for the end screen)
+  lib/
+    download.ts             # downloadTextFile — shared blob+anchor trigger used by CSV export buttons
   pages/
     SetupPage.tsx          # shown while config.status === 'SETUP'
-    DrawPage.tsx            # shown otherwise (IN_PROGRESS or COMPLETED); orchestrates the draw flow
+    DrawPage.tsx            # shown while IN_PROGRESS; renders CompletedSummary directly once COMPLETED
   App.tsx                  # routes on config.status, nothing else
 ```
+
+`DrawPage`'s compact layout intentionally duplicates data already shown in the detailed `StatusPanel` below it (remaining counts, winner list) — the compact version is what stays above the fold for the projector view, the detailed panel is the operator's full drill-down (꽝 명단, per-prize quantities). Keep both in sync if you change how remaining/winner counts are derived.
 
 ### The draw flow: predetermine-then-animate
 
@@ -60,6 +70,8 @@ Spec §6.2 requires the wheel's stop position to match a result decided *before*
 ### State machine
 
 `config.status`: `SETUP → IN_PROGRESS → COMPLETED`. `COMPLETED` is set inside `commitPendingDraw` when either all prizes are at 0 remaining, or no participant is left `ELIGIBLE` (spec §4.4's two end conditions). `resetAll()` restores the full initial state (including status back to `SETUP`).
+
+`config.manualParticipantSelection` is stored and toggleable from the setup screen but **not wired into `startDraw` yet** — the participant pick is always `pickParticipant`'s uniform random choice regardless of this flag. Implementing manual pick means changing `startDraw` to accept a chosen participant id when this flag is on, plus a picker UI on `DrawPage`.
 
 ## Testing
 

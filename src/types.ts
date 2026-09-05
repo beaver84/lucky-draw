@@ -35,6 +35,7 @@ export type EventStatus = 'SETUP' | 'IN_PROGRESS' | 'COMPLETED'
 
 export interface EventConfig {
   eliminateOnLose: boolean
+  manualParticipantSelection: boolean
   spinSpeed: SpinSpeed
   soundEnabled: boolean
   theme: 'default' | 'high-contrast'

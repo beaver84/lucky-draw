@@ -6,8 +6,8 @@ import type {
   Participant,
   Prize,
 } from '../types'
-import { resolveNewParticipants } from '../domain/participants'
-import { isValidPrizeQuantity, upsertPrize, type PrizeInput } from '../domain/prizes'
+import { parseParticipantLines } from '../domain/participants'
+import { parsePrizeLines } from '../domain/prizes'
 import { computeWheelSlots, pickParticipant, spinWheel, type WheelSlot } from '../domain/draw'
 
 export interface PendingDraw {
@@ -24,13 +24,8 @@ interface EventState {
   config: EventConfig
   pendingDraw: PendingDraw | null
 
-  addParticipants: (rawValues: string[]) => { duplicateCount: number; emptyCount: number }
-  removeParticipant: (id: string) => void
-  clearParticipants: () => void
-
-  addPrize: (input: PrizeInput) => boolean
-  updatePrize: (id: string, changes: { name?: string; initialQuantity?: number }) => void
-  removePrize: (id: string) => void
+  setParticipantsFromText: (raw: string) => void
+  setPrizesFromText: (raw: string) => void
 
   updateConfig: (changes: Partial<EventConfig>) => void
 
@@ -42,6 +37,7 @@ interface EventState {
 
 const initialConfig: EventConfig = {
   eliminateOnLose: false,
+  manualParticipantSelection: false,
   spinSpeed: 'NORMAL',
   soundEnabled: true,
   theme: 'default',
@@ -57,64 +53,32 @@ export const useEventStore = create<EventState>()(
       config: initialConfig,
       pendingDraw: null,
 
-      addParticipants: (rawValues) => {
-        const { added, duplicateCount, emptyCount } = resolveNewParticipants(
-          rawValues,
-          get().participants,
-        )
+      setParticipantsFromText: (raw) => {
+        const names = parseParticipantLines(raw)
         const now = new Date().toISOString()
-        const newParticipants: Participant[] = added.map((displayName) => ({
-          id: crypto.randomUUID(),
-          displayName,
-          status: 'ELIGIBLE',
-          createdAt: now,
-          resultAt: null,
-        }))
-        set((state) => ({ participants: [...state.participants, ...newParticipants] }))
-        return { duplicateCount, emptyCount }
-      },
-
-      removeParticipant: (id) => {
-        set((state) => ({
-          participants: state.participants.filter((p) => p.id !== id),
-        }))
-      },
-
-      clearParticipants: () => set({ participants: [] }),
-
-      addPrize: (input) => {
-        if (!isValidPrizeQuantity(input.quantity)) return false
-        const now = new Date().toISOString()
-        set((state) => ({
-          prizes: upsertPrize(state.prizes, input, () => ({
+        set({
+          participants: names.map((displayName) => ({
             id: crypto.randomUUID(),
-            name: input.name,
-            initialQuantity: input.quantity,
-            remainingQuantity: input.quantity,
+            displayName,
+            status: 'ELIGIBLE',
+            createdAt: now,
+            resultAt: null,
+          })),
+        })
+      },
+
+      setPrizesFromText: (raw) => {
+        const entries = parsePrizeLines(raw)
+        const now = new Date().toISOString()
+        set({
+          prizes: entries.map(({ name, quantity }) => ({
+            id: crypto.randomUUID(),
+            name,
+            initialQuantity: quantity,
+            remainingQuantity: quantity,
             createdAt: now,
           })),
-        }))
-        return true
-      },
-
-      updatePrize: (id, changes) => {
-        set((state) => ({
-          prizes: state.prizes.map((p) => {
-            if (p.id !== id) return p
-            const initialQuantity = changes.initialQuantity ?? p.initialQuantity
-            const delta = initialQuantity - p.initialQuantity
-            return {
-              ...p,
-              name: changes.name ?? p.name,
-              initialQuantity,
-              remainingQuantity: Math.max(0, p.remainingQuantity + delta),
-            }
-          }),
-        }))
-      },
-
-      removePrize: (id) => {
-        set((state) => ({ prizes: state.prizes.filter((p) => p.id !== id) }))
+        })
       },
 
       updateConfig: (changes) => {
