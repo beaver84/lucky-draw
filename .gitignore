@@ -1,4 +1,5 @@
 # Logs
+.claude/settings.local.json
 logs
 *.log
 npm-debug.log*
